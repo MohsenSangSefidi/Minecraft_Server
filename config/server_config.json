@@ -1,0 +1,40 @@
+{
+    "minecraft_version": "1.20.1",
+    "forge_version": "47.2.0",
+    "memory": {
+        "max": "4G",
+        "min": "2G"
+    },
+    "java_args": [
+        "-XX:+UseG1GC",
+        "-XX:+UnlockExperimentalVMOptions",
+        "-XX:MaxGCPauseMillis=100",
+        "-XX:+DisableExplicitGC",
+        "-XX:TargetSurvivorRatio=90",
+        "-XX:G1NewSizePercent=50",
+        "-XX:G1MaxNewSizePercent=80",
+        "-XX:G1MixedGCLiveThresholdPercent=35",
+        "-XX:+AlwaysPreTouch",
+        "-XX:+ParallelRefProcEnabled",
+        "-Dfml.readTimeout=180"
+    ],
+    "server_properties": {
+        "motd": "Forge Server on GitHub Codespaces with Custom Gateway",
+        "max-players": 10,
+        "view-distance": 8,
+        "online-mode": false,
+        "enable-command-block": true,
+        "allow-flight": true,
+        "announce-player-achievements": false,
+        "difficulty": "normal",
+        "pvp": true,
+        "spawn-monsters": true,
+        "spawn-animals": true,
+        "generate-structures": true,
+        "max-tick-time": 60000,
+        "network-compression-threshold": 256,
+        "enable-rcon": true,
+        "rcon.port": 25575,
+        "rcon.password": "minecraft123"
+    }
+}

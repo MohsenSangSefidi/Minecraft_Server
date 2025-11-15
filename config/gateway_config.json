@@ -1,0 +1,19 @@
+{
+    "gateway_port": 8080,
+    "dashboard_port": 8081,
+    "admin_port": 3000,
+    "minecraft_port": 25565,
+    "rcon_port": 25575,
+    "max_connections": 50,
+    "connection_timeout": 86400,
+    "cleanup_interval": 300,
+    "require_approval": false,
+    "auto_cleanup": true,
+    "connection_code_length": 8,
+    "allow_quick_join": true,
+    "default_connection_duration": 24,
+    "rate_limiting": {
+        "connections_per_hour": 10,
+        "max_connection_duration": 72
+    }
+}

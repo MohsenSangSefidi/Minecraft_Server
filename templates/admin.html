@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Forge Server{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="admin-header">
+        <h1>Admin Panel</h1>
+        <p>Advanced server management and configuration</p>
+    </div>
+
+    <div class="admin-grid">
+        <div class="admin-card">
+            <h2>Server Management</h2>
+            <div class="server-controls">
+                <button class="btn btn-success" onclick="restartServer()">
+                    🔄 Restart Server
+                </button>
+                <button class="btn btn-warning" onclick="stopServer()">
+                    ⏹️ Stop Server
+                </button>
+                <button class="btn btn-danger" onclick="killServer()">
+                    🔴 Force Stop
+                </button>
+            </div>
+            
+            <div class="server-status">
+                <h3>Real-time Status</h3>
+                <div id="realTimeStatus" class="status-monitor">
+                    <div class="loading">Connecting to server...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h2>Gateway Configuration</h2>
+            <div class="config-section">
+                <h3>Connection Settings</h3>
+                <div class="config-item">
+                    <label>
+                        <input type="checkbox" id="requireApproval" onchange="updateGatewayConfig()">
+                        Require Approval for New Connections
+                    </label>
+                </div>
+                <div class="config-item">
+                    <label>Max Connections:</label>
+                    <input type="number" id="maxConnections" value="50" onchange="updateGatewayConfig()">
+                </div>
+                <div class="config-item">
+                    <label>Connection Timeout (hours):</label>
+                    <input type="number" id="connectionTimeout" value="24" onchange="updateGatewayConfig()">
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h2>System Monitor</h2>
+            <div class="system-stats">
+                <div class="stat-row">
+                    <span>CPU Usage:</span>
+                    <span id="cpuUsage">Loading...</span>
+                </div>
+                <div class="stat-row">
+                    <span>Memory Usage:</span>
+                    <span id="memoryUsage">Loading...</span>
+                </div>
+                <div class="stat-row">
+                    <span>Disk Space:</span>
+                    <span id="diskSpace">Loading...</span>
+                </div>
+                <div class="stat-row">
+                    <span>Uptime:</span>
+                    <span id="serverUptime">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h2>Backup Management</h2>
+            <div class="backup-controls">
+                <button class="btn btn-primary" onclick="createBackup()">
+                    💾 Create Backup
+                </button>
+                <button class="btn btn-info" onclick="listBackups()">
+                    📋 List Backups
+                </button>
+                <button class="btn btn-warning" onclick="cleanupBackups()">
+                    🧹 Cleanup Old Backups
+                </button>
+            </div>
+            
+            <div class="backup-list">
+                <h3>Recent Backups</h3>
+                <div id="backupList" class="backup-items">
+                    <div class="loading">Loading backups...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-card full-width">
+        <h2>Connection Analytics</h2>
+        <div id="analyticsChart" class="analytics-container">
+            <div class="loading">Loading analytics data...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Admin-specific functionality
+async function restartServer() {
+    if (!confirm('Are you sure you want to restart the server? This will disconnect all players.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/server/restart', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Server restart initiated!');
+        } else {
+            showNotification('Failed to restart server: ' + result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Failed to restart server:', error);
+        showNotification('Error restarting server', 'error');
+    }
+}
+
+async function stopServer() {
+    if (!confirm('Are you sure you want to stop the server?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/server/stop', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Server stop initiated!');
+        } else {
+            showNotification('Failed to stop server: ' + result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Failed to stop server:', error);
+        showNotification('Error stopping server', 'error');
+    }
+}
+
+function killServer() {
+    if (!confirm('WARNING: This will force kill the server process. Unsaved progress may be lost. Continue?')) {
+        return;
+    }
+    
+    showNotification('Force stop feature coming soon!', 'warning');
+}
+
+function updateGatewayConfig() {
+    const requireApproval = document.getElementById('requireApproval').checked;
+    const maxConnections = document.getElementById('maxConnections').value;
+    const connectionTimeout = document.getElementById('connectionTimeout').value;
+    
+    // In a real implementation, you would send this to the server
+    console.log('Updating gateway config:', {
+        requireApproval,
+        maxConnections,
+        connectionTimeout
+    });
+    
+    showNotification('Configuration updated! (This is a demo)');
+}
+
+async function createBackup() {
+    try {
+        const response = await fetch('/api/backup/create', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Backup created successfully!');
+            listBackups();
+        } else {
+            showNotification('Failed to create backup: ' + result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Failed to create backup:', error);
+        showNotification('Error creating backup', 'error');
+    }
+}
+
+async function listBackups() {
+    try {
+        const response = await fetch('/api/backup/list');
+        const result = await response.json();
+        
+        if (result.success) {
+            displayBackups(result.backups);
+        } else {
+            showNotification('Failed to list backups: ' + result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Failed to list backups:', error);
+        showNotification('Error listing backups', 'error');
+    }
+}
+
+function displayBackups(backups) {
+    const container = document.getElementById('backupList');
+    
+    if (!backups || backups.length === 0) {
+        container.innerHTML = '<div class="empty-state">No backups found</div>';
+        return;
+    }
+    
+    let html = '';
+    backups.forEach(backup => {
+        html += `
+            <div class="backup-item">
+                <div class="backup-name">${backup.name}</div>
+                <div class="backup-size">${backup.size}</div>
+                <div class="backup-date">${backup.date}</div>
+                <button class="btn btn-small" onclick="restoreBackup('${backup.name}')">
+                    Restore
+                </button>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function restoreBackup(backupName) {
+    if (!confirm(`Are you sure you want to restore backup: ${backupName}? This will replace the current world.`)) {
+        return;
+    }
+    
+    showNotification(`Restoring backup: ${backupName} (This is a demo)`);
+}
+
+function cleanupBackups() {
+    if (!confirm('This will delete backups older than 30 days. Continue?')) {
+        return;
+    }
+    
+    showNotification('Cleaning up old backups... (This is a demo)');
+}
+
+// System monitoring (simplified)
+function updateSystemStats() {
+    // In a real implementation, you would fetch this from the server
+    document.getElementById('cpuUsage').textContent = '45%';
+    document.getElementById('memoryUsage').textContent = '2.1GB / 4GB';
+    document.getElementById('diskSpace').textContent = '15.2GB free';
+    document.getElementById('serverUptime').textContent = '2 hours, 15 minutes';
+}
+
+// Initialize admin panel
+document.addEventListener('DOMContentLoaded', function() {
+    updateSystemStats();
+    setInterval(updateSystemStats, 5000);
+    
+    // Load initial data
+    listBackups();
+});
+</script>
+{% endblock %}

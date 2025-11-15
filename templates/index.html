@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Forge Server{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="hero">
+        <h1>Welcome to Your Forge Server! 🎮</h1>
+        <p>Connect to your Minecraft Forge server using our custom gateway system</p>
+    </div>
+
+    <div class="cards-grid">
+        <div class="card">
+            <h2>🚀 Quick Connect</h2>
+            <p>Get instant access to the Minecraft server</p>
+            <button class="btn btn-primary" onclick="requestConnection()">Generate Connection</button>
+            <div id="connectionResult" class="result-container"></div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Server Status</h2>
+            <div id="serverStatus">
+                <div class="status-loading">Loading server status...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔗 Connection Methods</h2>
+            <div class="method-list">
+                <div class="method-item">
+                    <h3>Direct Connect</h3>
+                    <p><code>localhost:25565</code></p>
+                    <small>Use this in Codespaces environment</small>
+                </div>
+                <div class="method-item">
+                    <h3>Gateway Connect</h3>
+                    <p>Get a temporary connection code</p>
+                    <small>Perfect for sharing with friends</small>
+                </div>
+                <div class="method-item">
+                    <h3>QR Code</h3>
+                    <p>Scan to connect on mobile</p>
+                    <small>Easy mobile device connection</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-section">
+        <h2>Server Information</h2>
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>Minecraft Version:</strong>
+                <span id="mcVersion">Loading...</span>
+            </div>
+            <div class="info-item">
+                <strong>Forge Version:</strong>
+                <span id="forgeVersion">Loading...</span>
+            </div>
+            <div class="info-item">
+                <strong>Mods Loaded:</strong>
+                <span id="modsCount">Loading...</span>
+            </div>
+            <div class="info-item">
+                <strong>Active Connections:</strong>
+                <span id="activeConnections">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function requestConnection() {
+    const button = event.target;
+    button.disabled = true;
+    button.textContent = 'Creating Connection...';
+
+    try {
+        const response = await fetch('/api/connection/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: 'Web User',
+                purpose: 'Minecraft Gaming'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            if (result.connection_info) {
+                document.getElementById('connectionResult').innerHTML = `
+                    <div class="success-message">
+                        <h3>✅ Connection Ready!</h3>
+                        <div class="connection-details">
+                            <p><strong>Server Address:</strong> <code>${result.connection_info.full_url}</code></p>
+                            <p><strong>Connection Code:</strong> <code>${result.connection.code}</code></p>
+                            <p class="help-text">Use this address in Minecraft Multiplayer screen</p>
+                            <button class="btn btn-secondary" onclick="copyToClipboard('${result.connection_info.full_url}')">
+                                Copy Address
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                document.getElementById('connectionResult').innerHTML = `
+                    <div class="warning-message">
+                        <h3>⏳ Pending Approval</h3>
+                        <div class="connection-details">
+                            <p>Your connection code: <strong>${result.connection.code}</strong></p>
+                            <p>Waiting for admin approval. You'll be notified when approved.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            document.getElementById('connectionResult').innerHTML = `
+                <div class="error-message">
+                    <h3>❌ Connection Failed</h3>
+                    <p>Could not create connection. Please try again later.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('connectionResult').innerHTML = `
+            <div class="error-message">
+                <h3>❌ Network Error</h3>
+                <p>Failed to communicate with server: ${error.message}</p>
+            </div>
+        `;
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Generate Connection';
+    }
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Server address copied to clipboard!');
+    });
+}
+
+// Load server status and info
+async function loadServerInfo() {
+    try {
+        const [statusResponse, gatewayResponse] = await Promise.all([
+            fetch('/api/server/status'),
+            fetch('/api/gateway/stats')
+        ]);
+        
+        const status = await statusResponse.json();
+        const gatewayStats = await gatewayResponse.json();
+        
+        // Update server status
+        document.getElementById('serverStatus').innerHTML = `
+            <div class="status-display">
+                <div class="status-indicator ${status.status}"></div>
+                <div class="status-details">
+                    <p>Status: <strong>${status.status.toUpperCase()}</strong></p>
+                    <p>Players: ${status.players_online}/${status.max_players}</p>
+                </div>
+            </div>
+        `;
+        
+        // Update server information
+        document.getElementById('mcVersion').textContent = status.version;
+        document.getElementById('forgeVersion').textContent = status.forge_version;
+        document.getElementById('modsCount').textContent = status.mods_count;
+        document.getElementById('activeConnections').textContent = gatewayStats.active_connections;
+        
+    } catch (error) {
+        console.error('Failed to load server info:', error);
+    }
+}
+
+// Load initial data
+loadServerInfo();
+setInterval(loadServerInfo, 10000); // Refresh every 10 seconds
+</script>
+{% endblock %}

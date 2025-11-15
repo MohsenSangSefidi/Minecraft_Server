@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Forge Server{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="dashboard-header">
+        <h1>Server Dashboard</h1>
+        <p>Manage connections and monitor server activity</p>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h2>Active Connections</h2>
+            <div id="connectionsList" class="connections-list">
+                <div class="loading">Loading connections...</div>
+            </div>
+        </div>
+
+        <div class="dashboard-card">
+            <h2>Server Controls</h2>
+            <div class="control-buttons">
+                <button class="btn btn-success" onclick="sendServerCommand('say Hello from Dashboard!')">
+                    Broadcast Message
+                </button>
+                <button class="btn btn-warning" onclick="sendServerCommand('save-all')">
+                    Save World
+                </button>
+                <button class="btn btn-info" onclick="refreshConnections()">
+                    Refresh Connections
+                </button>
+            </div>
+
+            <div class="command-input">
+                <h3>Server Command</h3>
+                <div class="input-group">
+                    <input type="text" id="serverCommand" placeholder="Enter server command...">
+                    <button class="btn btn-primary" onclick="sendCustomCommand()">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-card">
+            <h2>Gateway Statistics</h2>
+            <div id="gatewayStats" class="stats-grid">
+                <div class="loading">Loading statistics...</div>
+            </div>
+        </div>
+
+        <div class="dashboard-card">
+            <h2>Quick Actions</h2>
+            <div class="quick-actions">
+                <button class="btn btn-primary" onclick="createQuickConnection()">
+                    Create Quick Connection
+                </button>
+                <button class="btn btn-secondary" onclick="viewAllConnections()">
+                    View All Connections
+                </button>
+                <button class="btn btn-info" onclick="generateConnectionReport()">
+                    Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let socket;
+
+function initializeSocket() {
+    socket = io();
+
+    socket.on('connections_update', function(data) {
+        updateConnectionsList(data.connections);
+    });
+
+    socket.on('connection_created', function(data) {
+        showNotification('New connection created: ' + data.connection.code);
+        refreshConnections();
+    });
+
+    socket.on('connection_approved', function(data) {
+        showNotification('Connection approved: ' + data.connection_code);
+        refreshConnections();
+    });
+}
+
+function updateConnectionsList(connections) {
+    const container = document.getElementById('connectionsList');
+
+    if (Object.keys(connections).length === 0) {
+        container.innerHTML = '<div class="empty-state">No active connections</div>';
+        return;
+    }
+
+    let html = '';
+    for (const [code, connection] of Object.entries(connections)) {
+        html += `
+            <div class="connection-item ${connection.status}">
+                <div class="connection-header">
+                    <span class="connection-code">${code}</span>
+                    <span class="connection-status">${connection.status}</span>
+                </div>
+                <div class="connection-details">
+                    <p>Port: ${connection.port}</p>
+                    <p>Created: ${new Date(connection.created_at).toLocaleString()}</p>
+                    ${connection.status === 'active' ? `
+                        <p><strong>Address:</strong> localhost:${connection.port}</p>
+                        <button class="btn btn-small" onclick="copyConnection('localhost:${connection.port}')">
+                            Copy Address
+                        </button>
+                    ` : ''}
+                    ${connection.status === 'pending' ? `
+                        <button class="btn btn-small btn-success" onclick="approveConnection('${code}')">
+                            Approve
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-small btn-danger" onclick="revokeConnection('${code}')">
+                        Revoke
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+async function refreshConnections() {
+    try {
+        const response = await fetch('/api/connections');
+        const data = await response.json();
+        updateConnectionsList(data.connections);
+
+        // Also refresh gateway stats
+        loadGatewayStats();
+    } catch (error) {
+        console.error('Failed to refresh connections:', error);
+    }
+}
+
+async function loadGatewayStats() {
+    try {
+        const response = await fetch('/api/gateway/stats');
+        const stats = await response.json();
+
+        document.getElementById('gatewayStats').innerHTML = `
+            <div class="stat-item">
+                <div class="stat-value">${stats.active_connections}</div>
+                <div class="stat-label">Active Connections</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${stats.total_connections}</div>
+                <div class="stat-label">Total Connections</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${stats.available_ports}</div>
+                <div class="stat-label">Available Ports</div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Failed to load gateway stats:', error);
+    }
+}
+
+async function approveConnection(connectionCode) {
+    try {
+        const response = await fetch(`/api/connection/${connectionCode}/approve`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('Connection approved successfully!');
+            refreshConnections();
+        } else {
+            showNotification('Failed to approve connection', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to approve connection:', error);
+        showNotification('Error approving connection', 'error');
+    }
+}
+
+async function revokeConnection(connectionCode) {
+    if (!confirm('Are you sure you want to revoke this connection?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/connection/${connectionCode}/revoke`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('Connection revoked successfully!');
+            refreshConnections();
+        } else {
+            showNotification('Failed to revoke connection', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to revoke connection:', error);
+        showNotification('Error revoking connection', 'error');
+    }
+}
+
+async function sendServerCommand(command) {
+    try {
+        const response = await fetch('/api/server/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: command })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('Command sent successfully!');
+        } else {
+            showNotification('Failed to send command: ' + result.error, 'error');
+        }
+    } catch (error) {
+        console.error('Failed to send command:', error);
+        showNotification('Error sending command', 'error');
+    }
+}
+
+function sendCustomCommand() {
+    const commandInput = document.getElementById('serverCommand');
+    const command = commandInput.value.trim();
+
+    if (command) {
+        sendServerCommand(command);
+        commandInput.value = '';
+    }
+}
+
+function copyConnection(address) {
+    navigator.clipboard.writeText(address).then(() => {
+        showNotification('Address copied to clipboard!');
+    });
+}
+
+function createQuickConnection() {
+    // Implementation for quick connection creation
+    showNotification('Quick connection feature coming soon!', 'info');
+}
+
+function viewAllConnections() {
+    refreshConnections();
+}
+
+function generateConnectionReport() {
+    // Implementation for report generation
+    showNotification('Report generation feature coming soon!', 'info');
+}
+
+function showNotification(message, type = 'success') {
+    // Simple notification implementation
+    alert(`${type.toUpperCase()}: ${message}`);
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeSocket();
+    refreshConnections();
+    loadGatewayStats();
+});
+</script>
+{% endblock %}
