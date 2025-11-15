@@ -3,8 +3,6 @@ import json
 import logging
 from pathlib import Path
 import os
-from bs4 import BeautifulSoup
-import re
 
 
 class ModManager:
@@ -21,23 +19,30 @@ class ModManager:
         self.logger = logging.getLogger(__name__)
 
     def load_config(self):
-        """Load mods configuration"""
-        from config_loader import ConfigLoader
-        self.config = ConfigLoader.load_mods_config()
+        """Load mods configuration with fallback"""
+        default_config = {
+            "minecraft_version": "1.20.1",
+            "forge_version": "47.2.0",
+            "auto_download": False,
+            "mods": {}
+        }
 
-    def download_mod(self, mod_name, mod_config):
-        """Download a mod (simplified - in practice you'd use CurseForge API)"""
-        if not mod_config["enabled"]:
-            self.logger.info(f"Skipping disabled mod: {mod_name}")
-            return False
+        try:
+            with open(self.config_path, 'r') as f:
+                user_config = json.load(f)
+                default_config.update(user_config)
+        except FileNotFoundError:
+            self.logger.warning(f"Mods config file {self.config_path} not found, using defaults")
+            Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(self.config_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
 
-        self.logger.info(f"Would download mod: {mod_name}")
-        # Actual implementation would use CurseForge API with proper authentication
-        return True
+        self.config = default_config
 
     def download_all_mods(self):
         """Download all configured mods"""
         if not self.config["auto_download"]:
+            self.logger.info("Auto-download is disabled")
             return True
 
         self.logger.info("Downloading configured mods...")
@@ -45,11 +50,12 @@ class ModManager:
         Path("mods").mkdir(exist_ok=True)
 
         success_count = 0
-        for mod_name, mod_config in self.config["mods"].items():
-            if self.download_mod(mod_name, mod_config):
+        for mod_name, mod_config in self.config.get("mods", {}).items():
+            if mod_config.get("enabled", False):
+                self.logger.info(f"Would download mod: {mod_name}")
                 success_count += 1
 
-        self.logger.info(f"Downloaded {success_count}/{len(self.config['mods'])} mods")
+        self.logger.info(f"Downloaded {success_count}/{len(self.config.get('mods', {}))} mods")
         return success_count > 0
 
     def get_installed_mods(self):

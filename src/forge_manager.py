@@ -33,9 +33,42 @@ class ForgeManager:
         self.logger = logging.getLogger(__name__)
 
     def load_config(self):
-        """Load Forge server configuration"""
-        from config_loader import ConfigLoader
-        self.config = ConfigLoader.load_server_config()
+        """Load Forge server configuration with fallback"""
+        default_config = {
+            "minecraft_version": os.getenv("MINECRAFT_VERSION", "1.20.1"),
+            "forge_version": os.getenv("FORGE_VERSION", "47.2.0"),
+            "memory": {
+                "max": os.getenv("SERVER_MAX_MEMORY", "4G"),
+                "min": "2G"
+            },
+            "server_properties": {
+                "motd": "Forge Server on GitHub Codespaces",
+                "max-players": 10,
+                "view-distance": 8,
+                "online-mode": False,
+                "enable-command-block": True,
+                "allow-flight": True
+            }
+        }
+
+        try:
+            # Try to load from config file
+            with open(self.config_path, 'r') as f:
+                user_config = json.load(f)
+                # Deep merge for nested dictionaries
+                for key, value in user_config.items():
+                    if isinstance(value, dict) and key in default_config:
+                        default_config[key].update(value)
+                    else:
+                        default_config[key] = value
+        except FileNotFoundError:
+            self.logger.warning(f"Config file {self.config_path} not found, using defaults")
+            # Create the config file with defaults
+            Path(self.config_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(self.config_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
+
+        self.config = default_config
 
     def ensure_directories(self):
         """Ensure all required directories exist"""
@@ -70,7 +103,7 @@ class ForgeManager:
     def download_forge_installer(self):
         """Download Forge installer"""
         installer_url = self.get_forge_download_url()
-        self.installer_jar = f"server/forge-installer.jar"
+        self.installer_jar = "server/forge-installer.jar"
 
         self.logger.info(f"Downloading Forge installer from: {installer_url}")
 
@@ -116,8 +149,10 @@ class ForgeManager:
 
                 # Find the forge server jar
                 forge_files = list(Path("server").glob("forge-*.jar"))
-                if forge_files:
-                    self.forge_jar = str(forge_files[0])
+                installer_files = [f for f in forge_files if "installer" not in str(f)]
+
+                if installer_files:
+                    self.forge_jar = str(installer_files[0])
                     self.logger.info(f"Found forge jar: {self.forge_jar}")
                     return True
                 else:
@@ -137,6 +172,7 @@ class ForgeManager:
 
         with open("server/server.properties", "w") as f:
             f.write("# Forge server properties (auto-generated)\n")
+            f.write("server-port=25565\n")
             for key, value in properties.items():
                 f.write(f"{key}={value}\n")
 
@@ -171,16 +207,11 @@ class ForgeManager:
             "java",
             f"-Xmx{self.config['memory']['max']}",
             f"-Xms{self.config['memory']['min']}",
+            "-jar", self.forge_jar,
+            "nogui"
         ]
 
-        # Add custom Java arguments
-        java_cmd.extend(self.config["java_args"])
-
-        # Add Forge jar
-        java_cmd.extend(["-jar", self.forge_jar, "nogui"])
-
         self.logger.info("Starting Forge server...")
-        self.logger.info(f"Java command: {' '.join(java_cmd)}")
 
         try:
             self.process = subprocess.Popen(
@@ -247,18 +278,3 @@ class ForgeManager:
             "forge_jar": self.forge_jar,
             "mods_count": len(list(Path("server/mods").glob("*.jar"))) if Path("server/mods").exists() else 0
         }
-
-    def send_rcon_command(self, command):
-        """Send command to server via RCON"""
-        try:
-            rcon_password = self.config["server_properties"]["rcon.password"]
-            rcon_port = self.config["server_properties"]["rcon.port"]
-
-            # Using subprocess to call rcon-cli or similar tool
-            # This is a simplified version - you might want to use a Python RCON library
-            cmd = f"echo '{command}' | nc localhost {rcon_port}"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            return result.stdout
-        except Exception as e:
-            self.logger.error(f"RCON command failed: {e}")
-            return None
