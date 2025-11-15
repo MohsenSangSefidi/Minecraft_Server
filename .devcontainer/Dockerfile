@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/devcontainers/python:3.11
 
-# Install Java 17
+# Install Java 17 and required dependencies
 RUN apt-get update && apt-get install -y \
     openjdk-17-jdk \
     wget \
@@ -10,12 +10,8 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create minecraft user
+# Create minecraft user (optional)
 RUN useradd -m -s /bin/bash minecraft
-
-# Install Node.js for web dashboard (optional)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
 
 WORKDIR /workspace
 
